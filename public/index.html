@@ -2,75 +2,232 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>UNO ONLINE</title>
+<title>UNO ONLINE PRO</title>
 <script src="/socket.io/socket.io.js"></script>
 
 <style>
-body{background:#0f172a;color:white;text-align:center}
-.card{width:60px;height:90px;margin:5px;display:inline-block;border-radius:10px;cursor:grab}
-.red{background:red}.blue{background:blue}.green{background:green}.yellow{background:gold}.black{background:black}
-#hand{position:fixed;bottom:0;width:100%}
-#timerBox{position:fixed;top:10px;right:10px;width:150px;height:25px;background:#333;border-radius:10px}
-#timerBar{height:100%;background:lime;width:100%}
+body{
+  margin:0;
+  background:radial-gradient(circle,#0f172a,#020617);
+  color:white;
+  font-family:sans-serif;
+  overflow:hidden;
+}
+
+/* TOP BAR */
+#topBar{
+  position:fixed;
+  top:10px;
+  width:100%;
+  text-align:center;
+}
+
+input,button{
+  padding:6px;
+  margin:2px;
+  border-radius:6px;
+  border:none;
+}
+
+/* TABLE */
+#table{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  width:300px;
+  height:200px;
+  border-radius:50%;
+  background:#111827;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 0 30px rgba(0,0,0,0.8);
+}
+
+/* TOP CARD */
+#topCard{
+  width:80px;
+  height:120px;
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+  font-size:22px;
+}
+
+/* PLAYER HAND */
+#hand{
+  position:fixed;
+  bottom:10px;
+  width:100%;
+  text-align:center;
+}
+
+/* CARD */
+.card{
+  width:70px;
+  height:100px;
+  border-radius:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin:6px;
+  font-weight:bold;
+  cursor:grab;
+  transition:0.2s;
+}
+
+.card:hover{
+  transform:translateY(-10px) scale(1.1);
+}
+
+/* COLORS */
+.red{background:#ef4444}
+.blue{background:#3b82f6}
+.green{background:#22c55e}
+.yellow{background:#eab308;color:black}
+.black{background:black}
+
+/* TIMER */
+#timerBox{
+  position:fixed;
+  top:10px;
+  right:20px;
+  width:150px;
+  height:25px;
+  background:#333;
+  border-radius:10px;
+  overflow:hidden;
+}
+#timerBar{
+  height:100%;
+  background:lime;
+  width:100%;
+}
+
+/* ANIMATION */
+.playAnim{
+  animation:pop 0.3s;
+}
+@keyframes pop{
+  0%{transform:scale(0.5)}
+  100%{transform:scale(1)}
+}
 </style>
 </head>
 
 <body>
 
-<input id="name" placeholder="Tên">
-<input id="roomInput" placeholder="Room">
-<button onclick="create()">Tạo</button>
-<button onclick="join()">Join</button>
-<button onclick="start()">Start</button>
+<!-- TOP UI -->
+<div id="topBar">
+  <input id="name" placeholder="Tên">
+  <input id="roomInput" placeholder="Room ID">
+  <button onclick="create()">Tạo</button>
+  <button onclick="join()">Join</button>
+  <button onclick="start()">Start</button>
+</div>
 
-<div id="timerBox"><div id="timerBar"></div></div>
+<!-- TABLE -->
+<div id="table">
+  <div id="topCard">?</div>
+</div>
 
+<!-- TIMER -->
+<div id="timerBox">
+  <div id="timerBar"></div>
+</div>
+
+<!-- HAND -->
 <div id="hand"></div>
 
+<!-- SOUND -->
+<audio id="playSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+
 <script>
-const socket=io();
+const socket = io();
+
 let currentRoom=null;
 let draggedIndex=null;
 
-function create(){ socket.emit('createRoom', name.value); }
-function join(){
-  currentRoom=roomInput.value;
-  socket.emit('joinRoom',{roomId:currentRoom,name:name.value});
+function playSound(){
+  document.getElementById('playSound').play();
 }
-function start(){ socket.emit('startGame', currentRoom); }
+
+/* ROOM */
+function create(){
+  socket.emit('createRoom', name.value);
+}
+
+function join(){
+  currentRoom = roomInput.value;
+  socket.emit('joinRoom',{
+    roomId: currentRoom,
+    name: name.value
+  });
+}
+
+function start(){
+  socket.emit('startGame', currentRoom);
+}
 
 socket.on('roomCreated', id=>{
   currentRoom=id;
   alert('Room: '+id);
 });
 
+/* GAME STATE */
 socket.on('gameState', room=>{
-  let me=room.players.find(p=>p.id===socket.id);
-  hand.innerHTML='';
+  let me = room.players.find(p=>p.id===socket.id);
+  if(!me) return;
+
+  // HAND
+  let handDiv=document.getElementById('hand');
+  handDiv.innerHTML='';
 
   me.hand.forEach((c,i)=>{
     let div=document.createElement('div');
     div.className='card '+c.color;
     div.innerText=c.value;
+
     div.draggable=true;
     div.ondragstart=()=>draggedIndex=i;
-    hand.appendChild(div);
+
+    handDiv.appendChild(div);
   });
+
+  // TOP CARD
+  let top=document.getElementById('topCard');
+  if(room.top){
+    top.className = 'card '+room.top.color + ' playAnim';
+    top.innerText = room.top.value;
+  }
 });
 
+/* PLAY CARD */
 document.body.ondrop=(e)=>{
   if(draggedIndex!=null){
-    socket.emit('playCard',{roomId:currentRoom,index:draggedIndex});
+    socket.emit('playCard',{
+      roomId:currentRoom,
+      index:draggedIndex
+    });
+    playSound();
   }
 };
 
+/* TIMER */
 socket.on('timer', t=>{
-  document.getElementById('timerBar').style.width=(t/15*100)+'%';
+  document.getElementById('timerBar').style.width = (t/15*100)+'%';
 });
 
+/* WIN */
 socket.on('winner', name=>{
-  alert(name+' thắng!');
+  alert(name + ' thắng!');
 });
+
+/* FIX DRAG */
+document.body.ondragover=(e)=>e.preventDefault();
 </script>
 
 </body>
